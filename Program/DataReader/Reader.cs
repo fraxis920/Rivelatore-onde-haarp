@@ -108,35 +108,49 @@ namespace DataReader
         }
 
         public void StartReading(string port)
-        {
-            serial = new SerialPort(port, 9600);
+{
+    serial = new SerialPort(port, 9600)
+    {
+        DtrEnable = true,
+        RtsEnable = true,
+        ReadTimeout = 2000,
+        NewLine = "\r"
+    };
 
+    try
+    {
+        serial.Open();
+
+        Console.WriteLine($"Connesso a {port}");
+
+        // Attendere il reset provocato dall'apertura della COM
+        Thread.Sleep(1500);
+
+        while (serial.IsOpen)
+        {
+            Lexer lexer = new Lexer();
             try
             {
-                serial.DtrEnable = true;   
-                serial.RtsEnable = true;
-                serial.Open();
-
-                Console.WriteLine($"Connesso a {port}");
-                string line = "";
-                while (true)
-                {
-                    line = serial.ReadLine();
-                    Console.WriteLine($"Ricevuto: {line}");      
-                   // Lexer b = new Lexer(line);
-                }
+                string line = serial.ReadLine();
+                Console.WriteLine($"Ricevuto: [{line}]");
+                lexer.Set(line);
+                lexer.StartLexing();
             }
-            catch (Exception ex)
+            catch (TimeoutException)
             {
-                Console.WriteLine($"Errore: {ex.Message}");
-            }
-            finally
-            {
-                if (serial.IsOpen)
-                {
-                    serial.Close();
-                }
+                
             }
         }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Errore: {ex}");
+    }
+    finally
+    {
+        if (serial?.IsOpen == true)
+            serial.Close();
+    }
+}
     }
 }

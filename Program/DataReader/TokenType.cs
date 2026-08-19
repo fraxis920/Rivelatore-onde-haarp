@@ -7,7 +7,8 @@ namespace DataReader
         Ampiezza,
         Durata,
         Timestamp,
-        Type
+        Type,
+        Value
     };
     
 }

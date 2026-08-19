@@ -10,6 +10,7 @@ namespace DataReader
             {
                 ReadData reader = new ReadData();
                 reader.CheckPort();
+                Lexer lexer = new Lexer();
             }
             catch (Exception ex)
             {
