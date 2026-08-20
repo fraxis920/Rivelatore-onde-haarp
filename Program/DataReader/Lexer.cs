@@ -35,6 +35,8 @@ namespace DataReader
                    || CurrentChar() == '=' 
                    || CurrentChar() == '_' 
                    || CurrentChar() == '%'
+                   || CurrentChar() == '[' 
+                   ||CurrentChar() == ']'
                    || (CurrentChar() == 'V' && char.IsWhiteSpace(PeekChar(1)));
        } 
        //private void Exeption(string error) => throw new Exception($"{error}");
