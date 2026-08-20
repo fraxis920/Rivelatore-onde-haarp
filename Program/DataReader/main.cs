@@ -6,6 +6,7 @@ namespace DataReader
     {
         static void Main(string[] args)
         {
+            File.WriteAllText("program.log", string.Empty);
             try
             {
                 ReadData reader = new ReadData();
@@ -14,7 +15,7 @@ namespace DataReader
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Errore: {ex.Message}");
+                File.AppendAllText("program.log", $"[Error]: {ex.Message}\n");
             }
         }
     }

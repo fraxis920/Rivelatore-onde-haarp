@@ -22,73 +22,84 @@ namespace DataReader
         }
        private string word = "";
        private List<Token> Tokenlist = new List<Token>();
-       private void Advance() => Cursor.Position++;
+       private void Advance() => Cursor.Position++; 
        private char CurrentChar() => data[Cursor.Position];
        private void StoreChar() => word += data[Cursor.Position];
        private char PeekChar(int offset) => data[Cursor.Position + offset];
        private void ResetString() => word = "";
        private bool IsOutOfRange() => Cursor.Position+1 >= data.Length;
-       private void Exeption(string error) => throw new Exception($"{error}");
-        private void ResetCursor()
+       private bool IsUnwanted()
+       {
+            return CurrentChar() == '|' 
+                   || CurrentChar() == '-' 
+                   || CurrentChar() == '=' 
+                   || CurrentChar() == '_' 
+                   || CurrentChar() == '%'
+                   || (CurrentChar() == 'V' && char.IsWhiteSpace(PeekChar(1)));
+       } 
+       //private void Exeption(string error) => throw new Exception($"{error}");
+     /*   Dictionary<string, TokenType> Type = new Dictionary<string, TokenType>()
         {
-            Cursor.Position = 0;
-            Cursor.Line = 1;
-            Cursor.Column = 1;
-        }
-        Dictionary<string, TokenType> Type = new Dictionary<string, TokenType>()
-        {
-            {"Frequenza", TokenType.Frequenza},
-            {"Ampiezza", TokenType.Ampiezza},
-            {"Durata", TokenType.Durata},
-            {"Timestamp", TokenType.Timestamp},
-            {"Type", TokenType.Type}
-        };
+            
+        };*/
+
         public void StartLexing()
         {
+            
             while (!IsOutOfRange())
             {
-                SkipWhiteSpace();
+                SkipUnwantedChar();
                 StoreChar();
                 CeckWord();
-                Advance();
+                if(!IsOutOfRange())
+                    Advance();
             }
         }
 
-        private void SkipWhiteSpace()
+        private void SkipUnwantedChar()
         {
-            if(char.IsWhiteSpace(CurrentChar()))
+            if(char.IsWhiteSpace(CurrentChar()) || IsUnwanted())
                 do
                 {
                     Advance();
-                } while(!IsOutOfRange() && char.IsWhiteSpace(PeekChar(1)));
+                } while(!IsOutOfRange() && (char.IsWhiteSpace(CurrentChar()) || IsUnwanted()));
         }
+
         private void CeckWord()
         {
-            if(Type.TryGetValue(word, out TokenType type)) 
-                if(PeekChar(1) == ':') 
-                {
-                    Advance(); 
-                    StoreToken(type);     
-                }
-                else Exeption($"Error: Unexpected Char {PeekChar(1)}, Expected :");  
+            if(CurrentChar() == ':') 
+                StoreToken(TokenType.Colon);
 
-            if(char.IsNumber(CurrentChar())) StoreIntValue();
+            else if(CurrentChar() == '.') 
+                StoreToken(TokenType.Dot);
+
+            else if(PeekChar(1) == ':' || char.IsWhiteSpace(PeekChar(1))) 
+                StoreToken(TokenType.Identifier);
+            
+
+            else if(char.IsNumber(CurrentChar())) 
+                StoreIntValue();
         }
 
         private void StoreIntValue()
         {
-            while(!IsOutOfRange() && char.IsNumber(PeekChar(1)))
+            bool Isfloat = false;
+            while(!IsOutOfRange() && (char.IsNumber(PeekChar(1)) || PeekChar(1) == '.'))
             {
                 Advance();
                 StoreChar();
+                if(CurrentChar() == '.') Isfloat = true;  
             }
-            StoreToken(TokenType.Value);
+            if(Isfloat) 
+                StoreToken(TokenType.FloatValue);
+            else 
+                StoreToken(TokenType.IntValue);
         }
 
         private void StoreToken(TokenType type)
         {
             Tokenlist.Add(new Token {Type = type, Value = word});
-            File.AppendAllText("program.log", $" New Token[ Type: {type}  Value: {word}]\n");
+            File.AppendAllText("program.log", $"\n[DEBUG] New Token Created [Type: {type}  Value: {word}]");
             ResetString();
         }
     }

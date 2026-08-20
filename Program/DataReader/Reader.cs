@@ -35,25 +35,19 @@ namespace DataReader
 
             if (devices.Count == 0)
             {
-                Console.WriteLine("Nessun dispositivo seriale trovato.");
+                File.AppendAllText("program.log", "[Error] nessun dispositivo trovato\n");
                 return null;
             }
 
-            Console.WriteLine("Dispositivi seriali trovati:");
+            File.AppendAllText("program.log", "[Info] Dispositivi trovati:\n");
 
             foreach (var device in devices)
             {
-                Console.WriteLine();
-                Console.WriteLine($"Porta: {device.Port}");
-                Console.WriteLine($"Nome:  {device.Name}");
-                Console.WriteLine($"USB:   {device.PnpId}");
+                File.AppendAllText("program.log", $"[Info] Porta: {device.Port}\n");
+                File.AppendAllText("program.log", $"[Info] Nome: {device.Name}\n");
+                File.AppendAllText("program.log", $"[Info] USB: {device.PnpId}\n");
             }
 
-            /*
-             * Qui NON scegliamo ports[0].
-             *
-             * Prima cerchiamo un dispositivo ESP32.
-             */
 
             var esp32Devices = devices.FindAll(device =>
                 device.PnpId.Contains("VID_303A", StringComparison.OrdinalIgnoreCase) ||
@@ -61,20 +55,17 @@ namespace DataReader
 
             if (esp32Devices.Count == 0)
             {
-                Console.WriteLine();
-                Console.WriteLine("Nessun ESP32/Arduino compatibile identificato.");
+                File.AppendAllText("program.log", "[Error] Nessun Microcontrollore compatibile identificato.\n");
                 return null;
             }
 
             if (esp32Devices.Count > 1)
             {
-                Console.WriteLine();
-                Console.WriteLine("ATTENZIONE: sono state trovate più porte compatibili.");
-                Console.WriteLine("Non verrà selezionata una porta casualmente.");
+                File.AppendAllText("program.log", "[Info] Piu porte trovate\n");
 
                 foreach (var device in esp32Devices)
                 {
-                    Console.WriteLine($"- {device.Port}: {device.Name}");
+                    File.AppendAllText("program.log", $"[Info] - {device.Port}: {device.Name}\n");
                 }
 
                 return null;
@@ -82,8 +73,7 @@ namespace DataReader
 
             string selectedPort = esp32Devices[0].Port;
 
-            Console.WriteLine();
-            Console.WriteLine($"ESP32 identificato sulla porta {selectedPort}");
+            File.AppendAllText("program.log", $"[Info] Microcontrollore identificato sulla porta {selectedPort}\n");
 
             return selectedPort;
         }
@@ -101,7 +91,7 @@ namespace DataReader
 
             if (port == null)
             {
-                throw new Exception("Port not found. Connect the device.");
+                throw new Exception("Porta non trovata connetti il dispositivo");
             }
 
             StartReading(port);
@@ -120,8 +110,7 @@ namespace DataReader
     try
     {
         serial.Open();
-
-        Console.WriteLine($"Connesso a {port}");
+        File.AppendAllText("program.log", $"[Info]: Connesso a {port}");
 
         // Attendere il reset provocato dall'apertura della COM
         Thread.Sleep(1500);
@@ -132,19 +121,18 @@ namespace DataReader
             try
             {
                 string line = serial.ReadLine();
-                Console.WriteLine($"Ricevuto: [{line}]");
                 lexer.Set(line);
                 lexer.StartLexing();
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
-                
+                throw new Exception($"{ex}");
             }
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Errore: {ex}");
+        throw new Exception($"{ex}");
     }
     finally
     {
