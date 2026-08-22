@@ -21,7 +21,7 @@ namespace DataReader
             this.data = data;
         }
        private string word = "";
-       private List<Token> Tokenlist = new List<Token>();
+       public List<Token> TokenList {get; private set;} = new();
        private void Advance() => Cursor.Position++; 
        private char CurrentChar() => data[Cursor.Position];
        private void StoreChar() => word += data[Cursor.Position];
@@ -99,7 +99,7 @@ namespace DataReader
 
         private void StoreToken(TokenType type)
         {
-            Tokenlist.Add(new Token {Type = type, Value = word});
+            TokenList.Add(new Token {Type = type, Value = word});
             File.AppendAllText("program.log", $"\n[DEBUG] New Token Created [Type: {type}  Value: {word}]");
             ResetString();
         }

@@ -98,47 +98,94 @@ namespace DataReader
         }
 
         public void StartReading(string port)
-{
-    serial = new SerialPort(port, 9600)
-    {
-        DtrEnable = true,
-        RtsEnable = true,
-        ReadTimeout = 2000,
-        NewLine = "\n"
-    };
-
-    try
-    {
-        serial.Open();
-        File.AppendAllText("program.log", $"[Info]: Connesso a {port}");
-
-        // Attendere il reset provocato dall'apertura della COM
-        Thread.Sleep(1500);
-
-        while (serial.IsOpen)
         {
-            Lexer lexer = new Lexer();
+            serial = new SerialPort(port, 9600)
+            {
+                DtrEnable = true,
+                RtsEnable = true,
+                ReadTimeout = 2000,
+                NewLine = "\n"
+            };
+
             try
             {
-                string line = serial.ReadLine();
-                lexer.Set(line);
-                lexer.StartLexing();
+                serial.Open();
+                File.AppendAllText("program.log", $"[Info]: Connesso a {port}");
+
+                // Attendere il reset provocato dall'apertura della COM
+                Thread.Sleep(1500);
+
+                while (serial.IsOpen)
+                {
+                    Lexer lexer = new Lexer();
+                    Parser parser = new Parser();
+                    try
+                    {
+                        string line = serial.ReadLine();
+                        lexer.Set(line);
+                        lexer.StartLexing();
+                        if(IsRadioWaveComplete(lexer.TokenList))
+                            parser.Set(lexer.TokenList);
+                            parser.StartParsing();
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        throw new Exception($"{ex}");
+                    }
+                }
             }
-            catch (TimeoutException ex)
+            catch (Exception ex)
             {
                 throw new Exception($"{ex}");
             }
+            finally
+            {
+                if (serial?.IsOpen == true)
+                    serial.Close();
+            }
         }
-    }
-    catch (Exception ex)
-    {
-        throw new Exception($"{ex}");
-    }
-    finally
-    {
-        if (serial?.IsOpen == true)
-            serial.Close();
-    }
-}
+        private bool IsRadioWaveComplete(List<Token> tokens)
+        {
+            bool frequency = false;
+            bool amplitude = false;
+            bool duration = false;
+            bool timestamp = false;
+            bool type = false;
+
+            foreach (Token token in tokens)
+            {
+                if (token.Type != TokenType.Identifier)
+                    continue;
+
+                switch (token.Value)
+                {
+                    case "Frequenza":
+                        frequency = true;
+                        break;
+
+                    case "Ampiezza":
+                        amplitude = true;
+                        break;
+
+                    case "Durata":
+                        duration = true;
+                        break;
+
+                    case "Timestamp":
+                        timestamp = true;
+                        break;
+
+                    case "Type":
+                        type = true;
+                        break;
+                }
+            }
+
+            return  frequency &&
+                    amplitude &&
+                    duration &&
+                    timestamp &&
+                    type;
+        }
     }
 }
