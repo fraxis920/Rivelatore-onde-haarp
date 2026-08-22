@@ -69,18 +69,17 @@ namespace DataReader
 
         private void CeckWord()
         {
-            if(CurrentChar() == ':') 
+            if(word == ":") 
                 StoreToken(TokenType.Colon);
 
-            else if(CurrentChar() == '.') 
+            else if(word == ".") 
                 StoreToken(TokenType.Dot);
-
-            else if(PeekChar(1) == ':' || char.IsWhiteSpace(PeekChar(1))) 
-                StoreToken(TokenType.Identifier);
-            
 
             else if(char.IsNumber(CurrentChar())) 
                 StoreIntValue();
+
+            else if(PeekChar(1) == ':' || PeekChar(1) == '.' || char.IsWhiteSpace(PeekChar(1))) 
+                StoreToken(TokenType.Identifier);         
         }
 
         private void StoreIntValue()

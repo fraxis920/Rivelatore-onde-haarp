@@ -104,7 +104,7 @@ namespace DataReader
         DtrEnable = true,
         RtsEnable = true,
         ReadTimeout = 2000,
-        NewLine = "\r"
+        NewLine = "\n"
     };
 
     try

@@ -7,6 +7,7 @@ namespace DataReader
         IntValue,
         Errore,
         Colon,
+        bracket,
         Dot,
         FloatValue,
     };
