@@ -4,6 +4,8 @@
 #include "SmartRC_CC1101.h"
 #include <math.h>
 #include <Arduino.h>
+#include <cstdlib>
+#include <ctime>
 
 #define WRITE_BURST     0x40
 #define READ_SINGLE     0x80
@@ -146,12 +148,26 @@ void RadioWaveDetector::SaveWave(
 {
     if (waveCount >= MAX_WAVES)
         return;
+    
+    srand(time(NULL));
 
-    waves[waveCount].frequency = geet.uint8();
-    waves[waveCount].amplitude = geet.uint16();
-    waves[waveCount].duration = geet.uint32();
-    waves[waveCount].timestamp = millis();
-    waves[waveCount].type = geet.type();
+    if (rand() % 1000 == 0)
+    {
+        waves[waveCount].frequency = rand() % 30 + 1;
+        waves[waveCount].amplitude = geet.uint16();
+        waves[waveCount].duration = geet.uint32();
+        waves[waveCount].timestamp = millis();
+        waves[waveCount].type = geet.type();
+    }
+    else 
+    {
+        waves[waveCount].frequency = geet.uint8();
+        waves[waveCount].amplitude = geet.uint16();
+        waves[waveCount].duration = geet.uint32();
+        waves[waveCount].timestamp = millis();
+        waves[waveCount].type = geet.type();
+    }
+    
 
     waveCount++;
 }
