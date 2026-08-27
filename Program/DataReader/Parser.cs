@@ -1,28 +1,192 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+
 namespace DataReader
 {
     class Parser
     {
-        private List<Token> TokenList;
+        private List<Token> TokenList = new();
+        private int Cursor;
 
         public void Set(List<Token> tokenList)
         {
             TokenList = tokenList;
+            Cursor = 0;
         }
 
-        private int Cursor = 0;
+        public Data StartParsing()
+        {
+            if (TokenList.Count == 0)
+                throw new Exception("No tokens to parse.");
+
+            return Current.Value switch
+            {
+                "Frequenza" => ParseRadioWave(),
+                "ADC" => ParseBattery(),
+                "ERROR" => ParseError(),
+                _ => throw new Exception(
+                    $"Unexpected data type: {Current.Value}")
+            };
+        }
+
         private Token Current => TokenList[Cursor];
-        private Token Advance() => TokenList[Cursor++];    
-        private Token PeekToken(int offset) => TokenList[Cursor + offset];
-        private bool Check(TokenType type) => Current.Type == type;
-        private Token Expect(TokenType token, string msg) 
+
+        private bool AtEnd => Cursor >= TokenList.Count;
+
+        private Token Advance()
         {
-            if (!Check(token)) throw new Exception($"[Error] {msg}");
-            return Advance();
+            return TokenList[Cursor++];
         }
 
-        public void StartParsing()
+        private void Expect(TokenType type)
         {
-            var Data = new List<Data>();
+            if (AtEnd || Current.Type != type)
+            {
+                throw new Exception(
+                    $"Expected {type}, found " +
+                    (AtEnd ? "end of tokens." : $"{Current.Type}."));
+            }
+
+            Advance();
+        }
+
+        // Ora consuma TUTTI gli Identifier consecutivi (es. "ADC" + "Battery" -> "ADC Battery")
+        // prima di aspettarsi il ':'. Il nome composito viene poi confrontato con quello atteso.
+        private string ReadValue(string name, TokenType type)
+        {
+            var sb = new StringBuilder();
+
+            while (!AtEnd && Current.Type == TokenType.Identifier)
+            {
+                if (sb.Length > 0)
+                    sb.Append(' ');
+
+                sb.Append(Advance().Value);
+            }
+
+            string actualName = sb.ToString();
+
+            if (actualName != name)
+            {
+                throw new Exception($"Expected '{name}', found '{actualName}'.");
+            }
+
+            Expect(TokenType.Colon);
+
+            if (AtEnd || Current.Type != type)
+            {
+                throw new Exception(
+                    $"Expected {type} for '{name}', found " +
+                    (AtEnd ? "end of tokens." : $"{Current.Type}."));
+            }
+
+            return Advance().Value;
+        }
+
+        private RadioWave ParseRadioWave()
+        {
+            RadioWave radioWave = new RadioWave
+            {
+                Frequency = int.Parse(
+                    ReadValue("Frequenza", TokenType.IntValue)
+                ),
+
+                Amplitude = int.Parse(
+                    ReadValue("Ampiezza", TokenType.IntValue)
+                ),
+
+                Duration = long.Parse(
+                    ReadValue("Durata", TokenType.IntValue)
+                ),
+
+                Timestamp = int.Parse(
+                    ReadValue("Timestamp", TokenType.IntValue)
+                ),
+
+                Type = int.Parse(
+                    ReadValue("Type", TokenType.IntValue)
+                )
+            };
+
+            DebugLogger.Info(
+                "Parser",
+                $"RadioWave parsed: " +
+                $"Frequency={radioWave.Frequency}, " +
+                $"Amplitude={radioWave.Amplitude}, " +
+                $"Duration={radioWave.Duration}, " +
+                $"Timestamp={radioWave.Timestamp}, " +
+                $"Type={radioWave.Type}"
+            );
+
+            return radioWave;
+        }
+
+        private Battery ParseBattery()
+        {
+            Battery battery = new Battery
+            {
+                ADC = float.Parse(
+                    ReadValue("ADC Battery", TokenType.FloatValue)
+                ),
+
+                VBattery = float.Parse(
+                    ReadValue("Battery", TokenType.FloatValue)
+                ),
+
+                Charge = float.Parse(
+                    ReadValue("Charge", TokenType.FloatValue)
+                )
+            };
+
+            DebugLogger.Info(
+                "Parser",
+                $"Battery parsed: " +
+                $"ADC={battery.ADC}, " +
+                $"VBattery={battery.VBattery}, " +
+                $"Charge={battery.Charge}"
+            );
+
+            return battery;
+        }
+
+        private Error ParseError()
+        {
+            if (Current.Value != "ERROR")
+            {
+                throw new Exception(
+                    $"Expected 'ERROR', found '{Current.Value}'.");
+            }
+
+            Advance();
+            Expect(TokenType.Colon);
+
+            var sb = new StringBuilder();
+
+            while (AtEnd || Current.Type != TokenType.Dot)
+            {
+                if (AtEnd)
+                {
+                    throw new Exception(
+                        "Unexpected end of tokens while parsing ERROR message: missing terminating '.'.");
+                }
+
+                if (sb.Length > 0)
+                sb.Append(' ');
+
+                sb.Append(Advance().Value);
+            }
+
+            Advance(); 
+
+            Error error = new Error
+            {
+                Type = sb.ToString()
+            };
+
+            DebugLogger.Info("Parser", $"Error parsed: Type={error.Type}");
+
+            return error;
         }
     }
 }

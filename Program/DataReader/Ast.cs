@@ -34,7 +34,7 @@ namespace DataReader
         public Error? Error { get; set; }
     }
 
-    class Error
+    class Error : Data
     {
         public string? Type { get; set; }
     }

@@ -207,7 +207,7 @@ namespace DataReader
 
             foreach (Token token in tokens)
             {
-                if (token.Type != TokenType.Identifier || token.Type != TokenType.Dot)
+                if (token.Type != TokenType.Identifier && token.Type != TokenType.Dot)
                     continue;
 
                 switch (token.Value)
@@ -240,19 +240,19 @@ namespace DataReader
                     continue;
 
                 if (tokens[i].Value == "ADC" &&
-                    tokens[i + 1].Type == TokenType.FloatValue)
+                    tokens[i + 3].Type == TokenType.FloatValue)
                 {
                     adcComplete = true;
                 }
 
                 if (tokens[i].Value == "Battery" &&
-                    tokens[i + 1].Type == TokenType.FloatValue)
+                    tokens[i + 2].Type == TokenType.FloatValue)
                 {
                     batteryComplete = true;
                 }
 
                 if (tokens[i].Value == "Charge" &&
-                    tokens[i + 1].Type == TokenType.FloatValue)
+                    tokens[i + 2].Type == TokenType.FloatValue)
                 {
                     chargeComplete = true;
                 }

@@ -58,8 +58,11 @@ namespace DataReader
             while (!IsOutOfRange())
             {
                 SkipUnwantedChar();
-                StoreChar();
-                CeckWord();
+                if(!IsOutOfRange()) 
+                {
+                    StoreChar();
+                    CeckWord();
+                }
                 if(!IsOutOfRange())
                     Advance();
             }
