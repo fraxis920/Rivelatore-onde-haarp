@@ -1,6 +1,6 @@
-namespace DataReader
+namespace DataHandler
 {
-    abstract class Data
+    public abstract class Data
     {
     }
 
@@ -18,6 +18,20 @@ namespace DataReader
         public long Duration { get; set; }
         public int Timestamp { get; set; }
         public int Type { get; set; }
+    }
+    public class RadioMeasurements : Data
+    {
+        public double Period { get; set; }
+        public double Wavelength { get; set; }
+        public double DurationSeconds { get; set; }
+        public double CycleCount { get; set; }
+        public double RelativePower { get; set; }
+        public double NormalizedAmplitude { get; set; }
+        public double FrequencyHz { get; set; }
+        public double FrequencyKHz { get; set; }
+        public double FrequencyMHz { get; set; }
+        public double FrequencyGHz { get; set; }
+        public string Band { get; set; } = string.Empty;
     }
 
     class Status : Data

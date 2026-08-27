@@ -1,7 +1,6 @@
 using System;
+using DataHandler;
 
-namespace DataReader
-{
     class Program
     {
         static void Main(string[] args)
@@ -15,7 +14,6 @@ namespace DataReader
                 
                 ReadData reader = new ReadData();
                 reader.CheckPort();
-                Lexer lexer = new Lexer();
             }
             catch (Exception ex)
             {
@@ -23,4 +21,3 @@ namespace DataReader
             }
         }
     }
-}

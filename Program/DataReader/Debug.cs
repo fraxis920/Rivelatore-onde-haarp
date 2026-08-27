@@ -1,6 +1,6 @@
 
 
-namespace DataReader
+namespace DataHandler
 {
     public enum LogLevel
     {

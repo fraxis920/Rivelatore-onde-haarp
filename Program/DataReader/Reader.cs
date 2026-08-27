@@ -3,7 +3,7 @@ using System;
 using System.Management;
 using System.Text.RegularExpressions;
 
-namespace DataReader
+namespace DataHandler
 {
     class PortDetector
     {
@@ -118,6 +118,8 @@ namespace DataReader
 
                 Lexer lexer = new Lexer();
                 Parser parser = new Parser();
+                ExcelWriter excelWriter = new ExcelWriter();
+
                 while (serial.IsOpen)
                 {
                     try
@@ -129,8 +131,15 @@ namespace DataReader
                         if(IsRadioWaveComplete(lexer.TokenList) || IsErrorComplete(lexer.TokenList) || IsBatteryComplete(lexer.TokenList))
                         {
                             parser.Set(lexer.TokenList);
-                            parser.StartParsing();
+                            Data data;
+                            data = parser.StartParsing();
                             lexer.ResetList();
+
+                            DataCalculator calculator = new DataCalculator();
+                            RadioMeasurements? measurements = calculator.Calculate(data);
+
+                            excelWriter.Write(data, measurements);
+
                         }
                     }
                     catch (TimeoutException ex)

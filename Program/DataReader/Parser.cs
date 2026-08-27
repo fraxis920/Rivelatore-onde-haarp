@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace DataReader
+namespace DataHandler
 {
     class Parser
     {
@@ -51,8 +51,6 @@ namespace DataReader
             Advance();
         }
 
-        // Ora consuma TUTTI gli Identifier consecutivi (es. "ADC" + "Battery" -> "ADC Battery")
-        // prima di aspettarsi il ':'. Il nome composito viene poi confrontato con quello atteso.
         private string ReadValue(string name, TokenType type)
         {
             var sb = new StringBuilder();

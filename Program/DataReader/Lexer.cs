@@ -1,4 +1,4 @@
-namespace DataReader
+namespace DataHandler
 {
     class Lexer
     {
