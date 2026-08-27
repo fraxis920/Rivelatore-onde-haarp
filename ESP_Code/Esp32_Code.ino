@@ -67,14 +67,6 @@ void setup()
     if (DEBUG_MODE)
     {
         hardwareOK = true;
-
-        Serial.println();
-        Serial.println("========== DEBUG MODE ==========");
-        Serial.println("Controlli hardware bypassati.");
-        Serial.println("Avvio misurazione...");
-        Serial.println("================================");
-        Serial.println();
-
         return;
     }
 
@@ -85,14 +77,10 @@ void setup()
     {
         printHardwareError();
         Serial.println();
-        Serial.println("ERRORE: hardware non valido.");
-        Serial.println("Misurazione bloccata.");
+        Serial.println("ERROR: hardware non valido.");
         return;
     }
 
-    Serial.println();
-    Serial.println("Hardware OK.");
-    Serial.println("Avvio misurazione...");
     Serial.println();
 }
 
@@ -110,7 +98,7 @@ void loop()
     {
         if (!checkBattery())
         {
-            Serial.println("ERRORE: batteria non presente o tensione non valida.");
+            Serial.println("ERROR: batteria non presente o tensione non valida.");
             hardwareOK = false;
             return;
         }
@@ -123,7 +111,7 @@ void loop()
             !antenna10MHzOK ||
             !antenna24MHzOK)
         {
-            Serial.println("ERRORE: una o piu' antenne non risultano disponibili.");
+            Serial.println("ERROR: una o piu' antenne non risultano disponibili.");
             hardwareOK = false;
             return;
         }
@@ -171,34 +159,33 @@ void loop()
 bool checkHardware()
 {
     Serial.println();
-    Serial.println("Controllo hardware...");
 
     batteryOK = checkBattery();
     Serial.println(
         batteryOK
-        ? "[OK] Batteria"
-        : "[ERRORE] Batteria"
+        ? ""
+        : "[ERROR:] Batteria."
     );
 
     antenna3MHzOK = checkAntenna(ANTENNA_3MHZ);
     Serial.println(
         antenna3MHzOK
-        ? "[OK] Antenna 3 MHz"
-        : "[ERRORE] Antenna 3 MHz"
+        ? ""
+        : "[ERROR:] Antenna 3 MHz."
     );
 
     antenna10MHzOK = checkAntenna(ANTENNA_10MHZ);
     Serial.println(
         antenna10MHzOK
-        ? "[OK] Antenna 10 MHz"
-        : "[ERRORE] Antenna 10 MHz"
+        ? ""
+        : "[ERROR:] Antenna 10 MHz."
     );
 
     antenna24MHzOK = checkAntenna(ANTENNA_24MHZ);
     Serial.println(
         antenna24MHzOK
-        ? "[OK] Antenna 24 MHz"
-        : "[ERRORE] Antenna 24 MHz"
+        ? ""
+        : "[ERROR:] Antenna 24 MHz."
     );
 
     return batteryOK &&
@@ -298,7 +285,7 @@ void printBatteryStatus(
 void printHardwareError()
 {
     Serial.println();
-    Serial.println("========== ERROR ==========");
+    Serial.println("ERROR:");
 
     if (!batteryOK)
         Serial.println("Batteria assente o tensione errata.");
@@ -311,8 +298,6 @@ void printHardwareError()
 
     if (!antenna24MHzOK)
         Serial.println("Antenna 24 MHz assente.");
-
-    Serial.println("===========================");
 }
 
 // Invio dati
