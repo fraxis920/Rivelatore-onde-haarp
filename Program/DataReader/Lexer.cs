@@ -20,6 +20,18 @@ namespace DataReader
         {
             this.data = data;
         }
+       public void ResetVariable()
+        {
+            Cursor.Position = 0;
+            Cursor.Line = 1;
+            Cursor.Column = 1;
+            word = "";
+            data = "";
+        }
+       public void ResetList()
+        {
+            TokenList.Clear();
+        }
        private string word = "";
        public List<Token> TokenList {get; private set;} = new();
        private void Advance() => Cursor.Position++; 
@@ -39,11 +51,6 @@ namespace DataReader
                    ||CurrentChar() == ']'
                    || (CurrentChar() == 'V' && char.IsWhiteSpace(PeekChar(1)));
        } 
-       //private void Exeption(string error) => throw new Exception($"{error}");
-     /*   Dictionary<string, TokenType> Type = new Dictionary<string, TokenType>()
-        {
-            
-        };*/
 
         public void StartLexing()
         {
@@ -100,7 +107,7 @@ namespace DataReader
         private void StoreToken(TokenType type)
         {
             TokenList.Add(new Token {Type = type, Value = word});
-            File.AppendAllText("program.log", $"\n[DEBUG] New Token Created [Type: {type}  Value: {word}]");
+            DebugLogger.Debug("Lexer", $"New Token: {type}, {word}");
             ResetString();
         }
     }

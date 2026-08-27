@@ -6,16 +6,20 @@ namespace DataReader
     {
         static void Main(string[] args)
         {
-            File.WriteAllText("program.log", string.Empty);
             try
             {
+                DebugLogger.ConsoleOutput = false;
+                DebugLogger.FileOutput = true;
+
+                DebugLogger.Initialize(clearLog: true);
+                
                 ReadData reader = new ReadData();
                 reader.CheckPort();
                 Lexer lexer = new Lexer();
             }
             catch (Exception ex)
             {
-                File.AppendAllText("program.log", $"[Error]: {ex.Message}\n");
+                DebugLogger.Error("Main", "Unhandled exception", ex);
             }
         }
     }

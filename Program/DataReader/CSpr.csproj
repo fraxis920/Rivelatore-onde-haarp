@@ -9,13 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Reader.cs" />
-    <Compile Include="TokenType.cs" />
-    <Compile Include="Token.cs" />
-    <Compile Include="Lexer.cs" />
-    <Compile Include="Ast.cs" />
-    <Compile Include="Parser.cs" />
-    <Compile Include="main.cs" />
+    <Compile Include="**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>

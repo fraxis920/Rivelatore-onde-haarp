@@ -35,17 +35,17 @@ namespace DataReader
 
             if (devices.Count == 0)
             {
-                File.AppendAllText("program.log", "[Error] nessun dispositivo trovato\n");
+                DebugLogger.Error("PortDetector", "No device found");
                 return null;
             }
 
-            File.AppendAllText("program.log", "[Info] Dispositivi trovati:\n");
+            DebugLogger.Info("PortDetector", "Devices found:");
 
             foreach (var device in devices)
             {
-                File.AppendAllText("program.log", $"[Info] Porta: {device.Port}\n");
-                File.AppendAllText("program.log", $"[Info] Nome: {device.Name}\n");
-                File.AppendAllText("program.log", $"[Info] USB: {device.PnpId}\n");
+                DebugLogger.Info("PortDetector", $"Port: {device.Port}");
+                DebugLogger.Info("PortDetector", $"Name: {device.Name}");
+                DebugLogger.Info("PortDetector", $"USB: {device.PnpId}");
             }
 
 
@@ -55,17 +55,17 @@ namespace DataReader
 
             if (esp32Devices.Count == 0)
             {
-                File.AppendAllText("program.log", "[Error] Nessun Microcontrollore compatibile identificato.\n");
+                DebugLogger.Error("PortDetector", "No compatible microcontroller identified.");
                 return null;
             }
 
             if (esp32Devices.Count > 1)
             {
-                File.AppendAllText("program.log", "[Info] Piu porte trovate\n");
+                DebugLogger.Info("PortDetector", "Multiple ports found");
 
                 foreach (var device in esp32Devices)
                 {
-                    File.AppendAllText("program.log", $"[Info] - {device.Port}: {device.Name}\n");
+                    DebugLogger.Info("PortDetector", $"- {device.Port}: {device.Name}");
                 }
 
                 return null;
@@ -73,7 +73,7 @@ namespace DataReader
 
             string selectedPort = esp32Devices[0].Port;
 
-            File.AppendAllText("program.log", $"[Info] Microcontrollore identificato sulla porta {selectedPort}\n");
+            DebugLogger.Info("PortDetector", $"Microcontroller identified on port {selectedPort}");
 
             return selectedPort;
         }
@@ -91,7 +91,7 @@ namespace DataReader
 
             if (port == null)
             {
-                throw new Exception("Porta non trovata connetti il dispositivo");
+                DebugLogger.Error("PortDetector", "Port not found. Connect the device.");
             }
 
             StartReading(port);
@@ -110,23 +110,28 @@ namespace DataReader
             try
             {
                 serial.Open();
-                File.AppendAllText("program.log", $"[Info]: Connesso a {port}");
+                DebugLogger.Info("Reader", $"Connected to {port}");
 
                 // Attendere il reset provocato dall'apertura della COM
                 Thread.Sleep(1500);
 
+
+                Lexer lexer = new Lexer();
+                Parser parser = new Parser();
                 while (serial.IsOpen)
                 {
-                    Lexer lexer = new Lexer();
-                    Parser parser = new Parser();
                     try
                     {
                         string line = serial.ReadLine();
                         lexer.Set(line);
                         lexer.StartLexing();
-                        if(IsRadioWaveComplete(lexer.TokenList))
+                        lexer.ResetVariable();
+                        if(IsRadioWaveComplete(lexer.TokenList) || IsErrorComplete(lexer.TokenList) || IsBatteryComplete(lexer.TokenList))
+                        {
                             parser.Set(lexer.TokenList);
                             parser.StartParsing();
+                            lexer.ResetList();
+                        }
                     }
                     catch (TimeoutException ex)
                     {
@@ -136,7 +141,7 @@ namespace DataReader
             }
             catch (Exception ex)
             {
-                throw new Exception($"{ex}");
+                DebugLogger.Error("Reader", $"{ex}");
             }
             finally
             {
@@ -151,41 +156,113 @@ namespace DataReader
             bool duration = false;
             bool timestamp = false;
             bool type = false;
+            
+            for (int i = 0; i < tokens.Count - 2; i++)
+            {
+                if (tokens[i].Type != TokenType.Identifier)
+                    continue;
+
+                switch (tokens[i].Value)
+                {
+                    case "Frequenza":
+                        if (tokens[i + 2].Type == TokenType.IntValue)
+                            frequency = true;
+                        break;
+
+                    case "Ampiezza":
+                        if (tokens[i + 2].Type == TokenType.IntValue)
+                            amplitude = true;
+                        break;
+
+                    case "Durata":
+                        if (tokens[i + 2].Type == TokenType.IntValue)
+                            duration = true;
+                        break;
+
+                    case "Timestamp":
+                        if (tokens[i + 2].Type == TokenType.IntValue)
+                            timestamp = true;
+                        break;
+
+                    case "Type":
+                        if (tokens[i + 2].Type == TokenType.IntValue)
+                            type = true;
+                        break;
+                }
+            }
+            bool result  =  frequency &&
+                            amplitude &&
+                            duration &&
+                            timestamp &&
+                            type;
+
+            DebugLogger.Debug("Reader", $"IsRadioWaveComplete: {result}");
+
+            return result;
+        }
+        private bool IsErrorComplete(List<Token> tokens)
+        {
+            bool Error = false;
+            bool ErrorType = false;
 
             foreach (Token token in tokens)
             {
-                if (token.Type != TokenType.Identifier)
+                if (token.Type != TokenType.Identifier || token.Type != TokenType.Dot)
                     continue;
 
                 switch (token.Value)
                 {
-                    case "Frequenza":
-                        frequency = true;
+                   case "ERROR":
+                        Error = true;
                         break;
-
-                    case "Ampiezza":
-                        amplitude = true;
-                        break;
-
-                    case "Durata":
-                        duration = true;
-                        break;
-
-                    case "Timestamp":
-                        timestamp = true;
-                        break;
-
-                    case "Type":
-                        type = true;
+                    case ".":
+                        ErrorType = true;
                         break;
                 }
             }
 
-            return  frequency &&
-                    amplitude &&
-                    duration &&
-                    timestamp &&
-                    type;
+            bool result = Error && ErrorType;
+
+            DebugLogger.Debug("Reader", $"IsErrorComplete: {result}");
+            
+            return  result;
+        }
+
+        private bool IsBatteryComplete(List<Token> tokens)
+        {
+            bool adcComplete = false;
+            bool batteryComplete = false;
+            bool chargeComplete = false;
+
+            for (int i = 0; i < tokens.Count - 1; i++)
+            {
+                if (tokens[i].Type != TokenType.Identifier)
+                    continue;
+
+                if (tokens[i].Value == "ADC" &&
+                    tokens[i + 1].Type == TokenType.FloatValue)
+                {
+                    adcComplete = true;
+                }
+
+                if (tokens[i].Value == "Battery" &&
+                    tokens[i + 1].Type == TokenType.FloatValue)
+                {
+                    batteryComplete = true;
+                }
+
+                if (tokens[i].Value == "Charge" &&
+                    tokens[i + 1].Type == TokenType.FloatValue)
+                {
+                    chargeComplete = true;
+                }
+            }
+            
+            bool result = adcComplete && batteryComplete && chargeComplete;
+
+            DebugLogger.Debug("Reader", $"IsBatteryComplete: {result}");
+
+            return result;
         }
     }
 }
