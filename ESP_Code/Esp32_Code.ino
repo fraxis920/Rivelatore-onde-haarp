@@ -2,7 +2,7 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <EEPROM.h>
 
-const bool DEBUG_MODE = true;
+const bool DEBUG_MODE = false;
 
 // CC1101
 const uint8_t CC1101_315_CSN = 5;
@@ -19,13 +19,19 @@ RadioWaveDetector radio(
 );
 
 // Batteria
-const uint8_t BATTERY_PIN = A3;
-const float R6 = 100000.0;
-const float R5 = 100000.0;
+const uint8_t BATTERY_PIN = 39;
+const float R6 = 10000.0;
+const float R5 = 10000.0;
 const float DIVIDER_RATIO = (R6 + R5) / R5;
-const float V_REF = 3.3;
 const float V_MIN = 3.2;
 const float V_MAX = 4.2;
+
+// Calibrazione empirica (V reale da multimetro / V calcolata da ESP32)
+const float CALIBRATION_FACTOR = 1.104;
+
+// Filtro EMA per attenuare il rumore tra letture successive
+float filteredVBattery = -1.0; // -1 = non ancora inizializzato
+const float EMA_ALPHA = 0.15;  // più basso = più filtro, meno reattività
 
 // EEPROM
 const int INDIRIZZO_CONTATORE = 0;
@@ -142,7 +148,7 @@ bool checkHardware()
 
     Serial.println(
         batteryOK
-        ? "[] Batteria."
+        ? ""
         : "[ERROR] Batteria."
     );
 
@@ -152,39 +158,49 @@ bool checkHardware()
 bool checkBattery()
 {
     float vADC = readBatteryADCVoltage();
-    float vBattery = calculateBatteryVoltage(vADC);
-    float percentage = calculatePercentage(vBattery);
+    float vBatteryRaw = calculateBatteryVoltage(vADC);
+
+    if (filteredVBattery < 0)
+    {
+        filteredVBattery = vBatteryRaw; // primo campione
+    }
+    else
+    {
+        filteredVBattery =
+            EMA_ALPHA * vBatteryRaw +
+            (1.0 - EMA_ALPHA) * filteredVBattery;
+    }
+
+    float percentage = calculatePercentage(filteredVBattery);
 
     printBatteryStatus(
         vADC,
-        vBattery,
+        filteredVBattery,
         percentage
     );
 
     return (
-        vBattery >= V_MIN &&
-        vBattery <= V_MAX
+        filteredVBattery >= V_MIN &&
+        filteredVBattery <= V_MAX
     );
 }
 
 float readBatteryADCVoltage()
 {
-    uint32_t adcSum = 0;
+    uint32_t mvSum = 0;
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 20; i++)
     {
-        adcSum += analogRead(BATTERY_PIN);
+        mvSum += analogReadMilliVolts(BATTERY_PIN);
         delay(5);
     }
 
-    return (
-        (adcSum / 10.0) * V_REF
-    ) / 4095.0;
+    return (mvSum / 20.0) / 1000.0; // Volt
 }
 
 float calculateBatteryVoltage(float vADC)
 {
-    return vADC * DIVIDER_RATIO;
+    return vADC * DIVIDER_RATIO * CALIBRATION_FACTOR;
 }
 
 float calculatePercentage(float vBattery)
