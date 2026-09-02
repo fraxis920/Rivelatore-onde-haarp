@@ -2,16 +2,21 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <EEPROM.h>
 
-// Debug
 const bool DEBUG_MODE = true;
 
-// Antenne
-const uint8_t ANTENNA_3MHZ = A0;
-const uint8_t ANTENNA_10MHZ = A1;
-const uint8_t ANTENNA_24MHZ = A2;
-const uint16_t ANTENNA_THRESHOLD = 20;
+// CC1101
+const uint8_t CC1101_315_CSN = 5;
+const uint8_t CC1101_433_CSN = 16;
+const uint8_t CC1101_868_CSN = 17;
 
-RadioWaveDetector radio(ANTENNA_3MHZ, ANTENNA_10MHZ, ANTENNA_24MHZ);
+const int16_t CC1101_RSSI_THRESHOLD = -90;
+
+RadioWaveDetector radio(
+    CC1101_315_CSN,
+    CC1101_433_CSN,
+    CC1101_868_CSN,
+    CC1101_RSSI_THRESHOLD
+);
 
 // Batteria
 const uint8_t BATTERY_PIN = A3;
@@ -28,9 +33,6 @@ const size_t EEPROM_SIZE = 1024;
 uint16_t numeroDatiSalvati = 0;
 
 // Stato hardware
-bool antenna3MHzOK = false;
-bool antenna10MHzOK = false;
-bool antenna24MHzOK = false;
 bool batteryOK = false;
 bool hardwareOK = false;
 
@@ -39,7 +41,6 @@ float readBatteryADCVoltage();
 float calculateBatteryVoltage(float vADC);
 float calculatePercentage(float vBattery);
 bool checkBattery();
-bool checkAntenna(uint8_t pin);
 bool checkHardware();
 void printBatteryStatus(float vADC, float vBattery, float percentage);
 void printHardwareError();
@@ -50,27 +51,19 @@ void setup()
     Serial.begin(9600);
     delay(2500);
 
-    // EEPROM
     EEPROM.begin(EEPROM_SIZE);
     numeroDatiSalvati = EEPROM.read(INDIRIZZO_CONTATORE);
 
-    // Pin
-    pinMode(ANTENNA_3MHZ, INPUT);
-    pinMode(ANTENNA_10MHZ, INPUT);
-    pinMode(ANTENNA_24MHZ, INPUT);
     pinMode(BATTERY_PIN, INPUT);
 
-    // Radio
     radio.begin();
 
-    // Debug bypass
     if (DEBUG_MODE)
     {
         hardwareOK = true;
         return;
     }
 
-    // Controllo hardware
     hardwareOK = checkHardware();
 
     if (!hardwareOK)
@@ -86,51 +79,35 @@ void setup()
 
 void loop()
 {
-    // Blocco se hardware non valido
     if (!hardwareOK)
     {
         delay(1000);
         return;
     }
 
-    // Controlli hardware
     if (!DEBUG_MODE)
     {
         if (!checkBattery())
         {
-            Serial.println("ERROR: batteria non presente o tensione non valida.");
-            hardwareOK = false;
-            return;
-        }
+            Serial.println(
+                "ERROR: batteria non presente o tensione non valida."
+            );
 
-        antenna3MHzOK = checkAntenna(ANTENNA_3MHZ);
-        antenna10MHzOK = checkAntenna(ANTENNA_10MHZ);
-        antenna24MHzOK = checkAntenna(ANTENNA_24MHZ);
-
-        if (!antenna3MHzOK ||
-            !antenna10MHzOK ||
-            !antenna24MHzOK)
-        {
-            Serial.println("ERROR: una o piu' antenne non risultano disponibili.");
             hardwareOK = false;
             return;
         }
     }
 
-    // Lettura radio
     radio.update();
 
     uint16_t count = radio.getWaveCount();
 
-    // Gestione dati
     if (count > 0)
     {
         RadioWave wave = radio.getWave(count - 1);
 
-        // Invio seriale
         SendData(wave);
 
-        // Salvataggio EEPROM
         const uint16_t MAX_DATI =
             (EEPROM_SIZE - 1) / sizeof(RadioWave);
 
@@ -150,65 +127,28 @@ void loop()
 
             EEPROM.commit();
         }
+
+        radio.clear();
     }
 
     delay(1000);
 }
 
-// Controllo hardware
 bool checkHardware()
 {
     Serial.println();
 
     batteryOK = checkBattery();
+
     Serial.println(
         batteryOK
-        ? ""
-        : "[ERROR:] Batteria."
+        ? "[] Batteria."
+        : "[ERROR] Batteria."
     );
 
-    antenna3MHzOK = checkAntenna(ANTENNA_3MHZ);
-    Serial.println(
-        antenna3MHzOK
-        ? ""
-        : "[ERROR:] Antenna 3 MHz."
-    );
-
-    antenna10MHzOK = checkAntenna(ANTENNA_10MHZ);
-    Serial.println(
-        antenna10MHzOK
-        ? ""
-        : "[ERROR:] Antenna 10 MHz."
-    );
-
-    antenna24MHzOK = checkAntenna(ANTENNA_24MHZ);
-    Serial.println(
-        antenna24MHzOK
-        ? ""
-        : "[ERROR:] Antenna 24 MHz."
-    );
-
-    return batteryOK &&
-           antenna3MHzOK &&
-           antenna10MHzOK &&
-           antenna24MHzOK;
+    return batteryOK;
 }
 
-// Controllo antenna
-bool checkAntenna(uint8_t pin)
-{
-    uint32_t sum = 0;
-
-    for (int i = 0; i < 20; i++)
-    {
-        sum += analogRead(pin);
-        delay(2);
-    }
-
-    return (sum / 20) > ANTENNA_THRESHOLD;
-}
-
-// Controllo batteria
 bool checkBattery()
 {
     float vADC = readBatteryADCVoltage();
@@ -227,7 +167,6 @@ bool checkBattery()
     );
 }
 
-// Lettura ADC batteria
 float readBatteryADCVoltage()
 {
     uint32_t adcSum = 0;
@@ -243,13 +182,11 @@ float readBatteryADCVoltage()
     ) / 4095.0;
 }
 
-// Calcolo tensione batteria
 float calculateBatteryVoltage(float vADC)
 {
     return vADC * DIVIDER_RATIO;
 }
 
-// Calcolo percentuale
 float calculatePercentage(float vBattery)
 {
     float percentage =
@@ -263,11 +200,11 @@ float calculatePercentage(float vBattery)
     );
 }
 
-// Stato batteria
 void printBatteryStatus(
     float vADC,
     float vBattery,
-    float percentage)
+    float percentage
+)
 {
     Serial.print("ADC Battery: ");
     Serial.print(vADC, 2);
@@ -281,26 +218,17 @@ void printBatteryStatus(
     Serial.println("%");
 }
 
-// Errori hardware
 void printHardwareError()
 {
     Serial.println();
     Serial.println("ERROR:");
 
     if (!batteryOK)
-        Serial.println("Batteria assente o tensione errata.");
-
-    if (!antenna3MHzOK)
-        Serial.println("Antenna 3 MHz assente.");
-
-    if (!antenna10MHzOK)
-        Serial.println("Antenna 10 MHz assente.");
-
-    if (!antenna24MHzOK)
-        Serial.println("Antenna 24 MHz assente.");
+        Serial.println(
+            "Batteria assente o tensione errata."
+        );
 }
 
-// Invio dati
 void SendData(RadioWave wave)
 {
     Serial.print("Frequenza:");
