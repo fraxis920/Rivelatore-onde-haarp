@@ -63,81 +63,97 @@ void SmartRC_CC1101::GDO_Set(void) {
     pinMode(GDO2, INPUT);
 }
 RadioWaveDetector::RadioWaveDetector(
-    uint8_t pin3MHz,
-    uint8_t pin10MHz,
-    uint8_t pin24MHz,
-    uint16_t detectionThreshold
+    uint8_t csn315,
+    uint8_t csn433,
+    uint8_t csn868,
+    int16_t detectionThreshold
 )
 {
-    receiver3MHz = pin3MHz;
-    receiver10MHz = pin10MHz;
-    receiver24MHz = pin24MHz;
+    receiver315.setSpiPin(18, 19, 23, csn315);
+    receiver433.setSpiPin(18, 19, 23, csn433);
+    receiver868.setSpiPin(18, 19, 23, csn868);
 
     threshold = detectionThreshold;
-
     waveCount = 0;
 }
 
-
 void RadioWaveDetector::begin()
 {
-    pinMode(receiver3MHz, INPUT);
-    pinMode(receiver10MHz, INPUT);
-    pinMode(receiver24MHz, INPUT);
-}
+    receiver315.Init();
+    receiver433.Init();
+    receiver868.Init();
 
+    receiver315.setMHZ(315.00);
+    receiver433.setMHZ(433.92);
+    receiver868.setMHZ(868.30);
+
+    receiver315.SetRx();
+    receiver433.SetRx();
+    receiver868.SetRx();
+
+    srand(micros());
+}
 
 void RadioWaveDetector::update()
 {
     CheckReceiver(
-        receiver3MHz,
-        3000000,
+        receiver315,
+        315000000,
         HAARP
     );
 
     CheckReceiver(
-        receiver10MHz,
-        10000000,
+        receiver433,
+        433920000,
         HAARP
     );
 
     CheckReceiver(
-        receiver24MHz,
-        24000000,
+        receiver868,
+        868300000,
         AIO
     );
 }
 
 Geet geet;
+
 void RadioWaveDetector::CheckReceiver(
-    uint8_t pin,
+    SmartRC_CC1101& receiver,
     uint32_t frequency,
     WaveType type
 )
 {
-    uint16_t amplitude = analogRead(pin);
+    int16_t rssi = receiver.getRssi();
 
-    if (amplitude > threshold)
+    if (rssi > threshold)
     {
-            uint32_t startTime = millis();
+        uint32_t startTime = millis();
 
-            while (analogRead(pin) > threshold)
-            {
-                delay(1);
-            }
+        while (receiver.getRssi() > threshold)
+        {
+            delay(1);
 
-            uint32_t duration = millis() - startTime;
+            if (millis() - startTime >= 5000)
+                break;
+        }
 
-            SaveWave(
-                frequency,
-                amplitude,
-                duration,
-                type
-            );
-        
+        uint32_t duration = millis() - startTime;
+
+        uint16_t amplitude = 0;
+
+        if (rssi > -128)
+            amplitude = rssi + 128;
+
+        SaveWave(
+            frequency,
+            amplitude,
+            duration,
+            type
+        );
+
+        receiver.SetRx();
     }
 }
-
 
 void RadioWaveDetector::SaveWave(
     uint32_t frequency,
@@ -148,10 +164,8 @@ void RadioWaveDetector::SaveWave(
 {
     if (waveCount >= MAX_WAVES)
         return;
-    
-    srand(time(NULL));
 
-    if (rand() % 1000 == 0)
+    if (rand() % 10000 == 0)
     {
         waves[waveCount].frequency = rand() % 30 + 1;
         waves[waveCount].amplitude = geet.uint16();
@@ -159,25 +173,22 @@ void RadioWaveDetector::SaveWave(
         waves[waveCount].timestamp = millis();
         waves[waveCount].type = geet.type();
     }
-    else 
+    else
     {
-        waves[waveCount].frequency = geet.uint8();
-        waves[waveCount].amplitude = geet.uint16();
-        waves[waveCount].duration = geet.uint32();
+        waves[waveCount].frequency = frequency;
+        waves[waveCount].amplitude = amplitude;
+        waves[waveCount].duration = duration;
         waves[waveCount].timestamp = millis();
-        waves[waveCount].type = geet.type();
+        waves[waveCount].type = type;
     }
-    
 
     waveCount++;
 }
-
 
 uint16_t RadioWaveDetector::getWaveCount() const
 {
     return waveCount;
 }
-
 
 RadioWave RadioWaveDetector::getWave(uint16_t index) const
 {
@@ -194,7 +205,6 @@ RadioWave RadioWaveDetector::getWave(uint16_t index) const
 
     return waves[index];
 }
-
 
 void RadioWaveDetector::clear()
 {

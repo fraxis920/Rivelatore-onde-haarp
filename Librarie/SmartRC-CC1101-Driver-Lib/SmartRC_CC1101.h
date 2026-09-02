@@ -233,19 +233,17 @@ struct RadioWave
 class RadioWaveDetector
 {
 private:
-
-    uint8_t receiver3MHz;
-    uint8_t receiver10MHz;
-    uint8_t receiver24MHz;
-
-    uint16_t waveCount;
+    SmartRC_CC1101 receiver315;
+    SmartRC_CC1101 receiver433;
+    SmartRC_CC1101 receiver868;
 
     RadioWave waves[MAX_WAVES];
+    uint16_t waveCount;
 
-    uint16_t threshold;
+    int16_t threshold;
 
     void CheckReceiver(
-        uint8_t pin,
+        SmartRC_CC1101& receiver,
         uint32_t frequency,
         WaveType type
     );
@@ -258,22 +256,18 @@ private:
     );
 
 public:
-
     RadioWaveDetector(
-        uint8_t pin3MHz,
-        uint8_t pin10MHz,
-        uint8_t pin24MHz,
-        uint16_t detectionThreshold = 100
+        uint8_t csn315,
+        uint8_t csn433,
+        uint8_t csn868,
+        int16_t detectionThreshold = -90
     );
 
     void begin();
-
     void update();
 
     uint16_t getWaveCount() const;
-
     RadioWave getWave(uint16_t index) const;
-
     void clear();
 };
 
