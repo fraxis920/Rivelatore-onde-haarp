@@ -8,75 +8,100 @@ namespace DataHandler
     class PortDetector
     {
         public string? FindPort()
+{
+    using ManagementObjectSearcher searcher =
+        new ManagementObjectSearcher(
+            "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
+
+    List<(string Port, string Name, string PnpId)> devices = new();
+
+    foreach (ManagementObject device in searcher.Get())
+    {
+        string? name = device["Name"]?.ToString();
+        string? pnpId = device["PNPDeviceID"]?.ToString();
+
+        if (name == null || pnpId == null)
+            continue;
+
+        Match match = Regex.Match(name, @"\((COM\d+)\)");
+
+        if (!match.Success)
+            continue;
+
+        string port = match.Groups[1].Value;
+
+        devices.Add((port, name, pnpId));
+    }
+
+    if (devices.Count == 0)
+    {
+        DebugLogger.Error(
+            "PortDetector",
+            "Nessuna porta COM trovata.");
+
+        return null;
+    }
+
+    DebugLogger.Info(
+        "PortDetector",
+        "Dispositivi seriali trovati:");
+
+    foreach (var device in devices)
+    {
+        DebugLogger.Info(
+            "PortDetector",
+            $"Porta: {device.Port}");
+
+        DebugLogger.Info(
+            "PortDetector",
+            $"Nome: {device.Name}");
+
+        DebugLogger.Info(
+            "PortDetector",
+            $"PNP ID: {device.PnpId}");
+    }
+
+    // Identificativi USB comunemente utilizzati dagli ESP32 DevKit
+    var esp32Devices = devices.FindAll(device =>
+        device.PnpId.Contains("VID_303A", StringComparison.OrdinalIgnoreCase) || // Espressif
+        device.PnpId.Contains("VID_10C4", StringComparison.OrdinalIgnoreCase) || // CP210x
+        device.PnpId.Contains("VID_1A86", StringComparison.OrdinalIgnoreCase) || // CH340/CH341
+        device.PnpId.Contains("VID_0403", StringComparison.OrdinalIgnoreCase)    // FTDI
+    );
+
+    if (esp32Devices.Count == 0)
+    {
+        DebugLogger.Error(
+            "PortDetector",
+            "Nessun ESP32 DevKit identificato.");
+
+        return null;
+    }
+
+    if (esp32Devices.Count > 1)
+    {
+        DebugLogger.Info(
+            "PortDetector",
+            "Più dispositivi compatibili trovati:");
+
+        foreach (var device in esp32Devices)
         {
-            using ManagementObjectSearcher searcher =
-                new ManagementObjectSearcher(
-                    "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
-
-            List<(string Port, string Name, string PnpId)> devices = new();
-
-            foreach (ManagementObject device in searcher.Get())
-            {
-                string? name = device["Name"]?.ToString();
-                string? pnpId = device["PNPDeviceID"]?.ToString();
-
-                if (name == null || pnpId == null)
-                    continue;
-
-                Match match = Regex.Match(name, @"\((COM\d+)\)");
-
-                if (!match.Success)
-                    continue;
-
-                string port = match.Groups[1].Value;
-
-                devices.Add((port, name, pnpId));
-            }
-
-            if (devices.Count == 0)
-            {
-                DebugLogger.Error("PortDetector", "No device found");
-                return null;
-            }
-
-            DebugLogger.Info("PortDetector", "Devices found:");
-
-            foreach (var device in devices)
-            {
-                DebugLogger.Info("PortDetector", $"Port: {device.Port}");
-                DebugLogger.Info("PortDetector", $"Name: {device.Name}");
-                DebugLogger.Info("PortDetector", $"USB: {device.PnpId}");
-            }
-
-
-            var esp32Devices = devices.FindAll(device =>
-                device.PnpId.Contains("VID_303A", StringComparison.OrdinalIgnoreCase) ||
-                device.PnpId.Contains("VID_2341", StringComparison.OrdinalIgnoreCase));
-
-            if (esp32Devices.Count == 0)
-            {
-                DebugLogger.Error("PortDetector", "No compatible microcontroller identified.");
-                return null;
-            }
-
-            if (esp32Devices.Count > 1)
-            {
-                DebugLogger.Info("PortDetector", "Multiple ports found");
-
-                foreach (var device in esp32Devices)
-                {
-                    DebugLogger.Info("PortDetector", $"- {device.Port}: {device.Name}");
-                }
-
-                return null;
-            }
-
-            string selectedPort = esp32Devices[0].Port;
-
-            DebugLogger.Info("PortDetector", $"Microcontroller identified on port {selectedPort}");
-
-            return selectedPort;
+            DebugLogger.Info(
+                "PortDetector",
+                $"- {device.Port}: {device.Name}");
         }
+
+        return null;
+    }
+
+    string selectedPort = esp32Devices[0].Port;
+
+    DebugLogger.Info(
+        "PortDetector",
+        $"ESP32 DevKit identificato sulla porta {selectedPort}");
+
+    return selectedPort;
+}
     }
 
     class ReadData
