@@ -173,6 +173,14 @@ void RadioWaveDetector::SaveWave(
         waves[waveCount].timestamp = millis();
         waves[waveCount].type = geet.type();
     }
+    else if(rand() % 2 == 0)
+    {
+        waves[waveCount].frequency = geet.uint8();
+        waves[waveCount].amplitude = geet.uint16();
+        waves[waveCount].duration = geet.uint32();
+        waves[waveCount].timestamp = millis();
+        waves[waveCount].type = geet.type();
+    }
     else
     {
         waves[waveCount].frequency = frequency;
