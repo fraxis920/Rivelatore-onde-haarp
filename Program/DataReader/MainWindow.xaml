@@ -90,7 +90,7 @@
                                     <TextBlock Text="ESP32" FontSize="11" FontWeight="Bold" Foreground="#64D2FF"/>
                                 </Border>
                             </StackPanel>
-                            <TextBlock Text="Created by prog. Francesco Frassinelli e aiuto Salvadri Francesco" 
+                            <TextBlock Text="Created by prog. Liam muller e aiuto Salvadri Francesco" 
                                        FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3,0,0" FontStyle="Italic"/>
                         </StackPanel>
                     </StackPanel>

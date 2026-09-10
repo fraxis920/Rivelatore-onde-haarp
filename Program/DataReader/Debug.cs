@@ -68,6 +68,11 @@ namespace DataHandler
                 {
                     try
                     {
+                        // FIX: fallback difensivo. Se per qualsiasi motivo Initialize()
+                        // non è stata chiamata, la cartella non esiste e AppendAllText
+                        // lancerebbe DirectoryNotFoundException ad ogni singolo log,
+                        // venendo ingoiata silenziosamente dal catch sottostante.
+                        Directory.CreateDirectory(LogDirectory);
                         File.AppendAllText(LogFile, output + Environment.NewLine);
                     }
                     catch (Exception ex)

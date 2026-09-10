@@ -1,5 +1,6 @@
 using System.IO.Ports;
 using System;
+using System.Linq;
 using System.Management;
 using System.Text.RegularExpressions;
 
@@ -7,101 +8,92 @@ namespace DataHandler
 {
     class PortDetector
     {
-        public string? FindPort()
-{
-    using ManagementObjectSearcher searcher =
-        new ManagementObjectSearcher(
-            "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
-
-    List<(string Port, string Name, string PnpId)> devices = new();
-
-    foreach (ManagementObject device in searcher.Get())
-    {
-        string? name = device["Name"]?.ToString();
-        string? pnpId = device["PNPDeviceID"]?.ToString();
-
-        if (name == null || pnpId == null)
-            continue;
-
-        Match match = Regex.Match(name, @"\((COM\d+)\)");
-
-        if (!match.Success)
-            continue;
-
-        string port = match.Groups[1].Value;
-
-        devices.Add((port, name, pnpId));
-    }
-
-    if (devices.Count == 0)
-    {
-        DebugLogger.Error(
-            "PortDetector",
-            "Nessuna porta COM trovata.");
-
-        return null;
-    }
-
-    DebugLogger.Info(
-        "PortDetector",
-        "Dispositivi seriali trovati:");
-
-    foreach (var device in devices)
-    {
-        DebugLogger.Info(
-            "PortDetector",
-            $"Porta: {device.Port}");
-
-        DebugLogger.Info(
-            "PortDetector",
-            $"Nome: {device.Name}");
-
-        DebugLogger.Info(
-            "PortDetector",
-            $"PNP ID: {device.PnpId}");
-    }
-
-    // Identificativi USB comunemente utilizzati dagli ESP32 DevKit
-    var esp32Devices = devices.FindAll(device =>
-        device.PnpId.Contains("VID_303A", StringComparison.OrdinalIgnoreCase) || // Espressif
-        device.PnpId.Contains("VID_10C4", StringComparison.OrdinalIgnoreCase) || // CP210x
-        device.PnpId.Contains("VID_1A86", StringComparison.OrdinalIgnoreCase) || // CH340/CH341
-        device.PnpId.Contains("VID_0403", StringComparison.OrdinalIgnoreCase)    // FTDI
-    );
-
-    if (esp32Devices.Count == 0)
-    {
-        DebugLogger.Error(
-            "PortDetector",
-            "Nessun ESP32 DevKit identificato.");
-
-        return null;
-    }
-
-    if (esp32Devices.Count > 1)
-    {
-        DebugLogger.Info(
-            "PortDetector",
-            "Più dispositivi compatibili trovati:");
-
-        foreach (var device in esp32Devices)
+        private static readonly string[] Esp32VendorIds =
         {
-            DebugLogger.Info(
-                "PortDetector",
-                $"- {device.Port}: {device.Name}");
+            "VID_303A", 
+            "VID_10C4", 
+            "VID_1A86"  
+        };
+
+        // Ritorna tutte le porte COM viste da Windows, con nome e PnP ID grezzi.
+        public List<(string Port, string Name, string PnpId)> FindCandidatePorts()
+        {
+            using ManagementObjectSearcher searcher =
+                new ManagementObjectSearcher(
+                    "SELECT Name, PNPDeviceID FROM Win32_PnPEntity WHERE Name LIKE '%(COM%'");
+
+            List<(string Port, string Name, string PnpId)> devices = new();
+
+            foreach (ManagementObject device in searcher.Get())
+            {
+                string? name = device["Name"]?.ToString();
+                string? pnpId = device["PNPDeviceID"]?.ToString();
+
+                if (name == null || pnpId == null)
+                    continue;
+
+                Match match = Regex.Match(name, @"\((COM\d+)\)");
+
+                if (!match.Success)
+                    continue;
+
+                string port = match.Groups[1].Value;
+
+                devices.Add((port, name, pnpId));
+
+                DebugLogger.Info("PortDetector", $"Porta rilevata: {port} | {name} | {pnpId}");
+            }
+
+            return devices;
         }
 
-        return null;
-    }
+        // FIX: metodo pubblico e riusabile. Filtra SOLO le porte con VID
+        // effettivamente compatibile con l'ESP32, escludendo esplicitamente
+        // altri microcontrollori (es. Arduino Uno "VID_2341") che potrebbero
+        // essere collegati insieme e generare falsi positivi / ambiguità.
+        public List<(string Port, string Name, string PnpId)> FindEsp32Ports()
+        {
+            var all = FindCandidatePorts();
 
-    string selectedPort = esp32Devices[0].Port;
+            var esp32Devices = all.FindAll(device =>
+                Esp32VendorIds.Any(vid =>
+                    device.PnpId.Contains(vid, StringComparison.OrdinalIgnoreCase)));
 
-    DebugLogger.Info(
-        "PortDetector",
-        $"ESP32 DevKit identificato sulla porta {selectedPort}");
+            DebugLogger.Info(
+                "PortDetector",
+                $"Porte totali trovate: {all.Count} | Compatibili ESP32: {esp32Devices.Count}");
 
-    return selectedPort;
-}
+            return esp32Devices;
+        }
+
+        public string? FindPort()
+        {
+            var esp32Devices = FindEsp32Ports();
+
+            if (esp32Devices.Count == 0)
+            {
+                DebugLogger.Error("PortDetector", "Nessun ESP32 identificato tra le porte disponibili.");
+                return null;
+            }
+
+            if (esp32Devices.Count > 1)
+            {
+                DebugLogger.Info("PortDetector", "Trovate più porte ESP32 compatibili:");
+
+                foreach (var device in esp32Devices)
+                {
+                    DebugLogger.Info("PortDetector", $"- {device.Port}: {device.Name}");
+                }
+
+                DebugLogger.Info("PortDetector", $"Seleziono la prima: {esp32Devices[0].Port}");
+            }
+
+            string selectedPort = esp32Devices[0].Port;
+
+            DebugLogger.Info("PortDetector", $"Microcontrollore identificato sulla porta {selectedPort}");
+
+            return selectedPort;
+        }
     }
 
     class ReadData
@@ -116,7 +108,12 @@ namespace DataHandler
 
             if (port == null)
             {
-                DebugLogger.Error("PortDetector", "Port not found. Connect the device.");
+                // FIX: prima si arrivava comunque a StartReading(null), che avrebbe
+                // creato un SerialPort con nome null e sarebbe fallito con una
+                // NullReferenceException/ArgumentNullException invece di un errore
+                // chiaro "dispositivo non collegato".
+                DebugLogger.Error("PortDetector", "Porta non trovata. Collegare il dispositivo.");
+                return;
             }
 
             StartReading(port);

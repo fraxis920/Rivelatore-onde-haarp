@@ -51,6 +51,10 @@ namespace DataHandler
         // Thread per l'ascolto seriale in background
         private CancellationTokenSource? _serialCts;
 
+        // FIX: usiamo lo stesso PortDetector di Reader.cs (filtrato per VID ESP32)
+        // invece di prendere alla cieca la prima porta restituita da Windows.
+        private readonly PortDetector _portDetector = new();
+
         public MainViewModel()
         {
             _dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
@@ -339,20 +343,39 @@ namespace DataHandler
             try
             {
                 AvailablePorts.Clear();
-                string[] ports = SerialPort.GetPortNames();
-                foreach (string port in ports)
+
+                // FIX: SerialPort.GetPortNames() ritorna TUTTE le porte COM viste da
+                // Windows, senza ordine garantito e senza distinguere quale dispositivo
+                // sia collegato a quale porta. Se erano collegati sia un Arduino Uno
+                // che un ESP32, il codice prendeva "AvailablePorts[0]" alla cieca,
+                // che spesso corrispondeva alla porta con indice più alto (l'ultima
+                // assegnata da Windows) invece che all'ESP32 desiderato.
+                // Ora usiamo lo stesso identificatore per VID di Reader.cs, che
+                // riconosce esplicitamente l'ESP32 ed esclude altri Arduino.
+                var esp32Ports = _portDetector.FindEsp32Ports();
+
+                foreach (var device in esp32Ports)
                 {
-                    AvailablePorts.Add(port);
+                    AvailablePorts.Add(device.Port);
                 }
 
-                if (AvailablePorts.Count > 0 && !AvailablePorts.Contains(SelectedPort))
+                if (AvailablePorts.Count > 0)
                 {
-                    SelectedPort = AvailablePorts[0];
+                    if (!AvailablePorts.Contains(SelectedPort))
+                    {
+                        SelectedPort = AvailablePorts[0];
+                    }
                 }
-                else if (AvailablePorts.Count == 0)
+                else
                 {
-                    AvailablePorts.Add("COM5");
-                    SelectedPort = "COM5";
+                    // FIX: niente più fallback fittizio su "COM5". Aggiungere una
+                    // porta finta faceva sì che l'app tentasse comunque di aprirla:
+                    // se quella porta esisteva per un altro dispositivo, serial.Open()
+                    // riusciva comunque e l'interfaccia mostrava "CONNESSO" anche
+                    // se l'ESP32 non era affatto collegato.
+                    SelectedPort = string.Empty;
+                    IsConnected = false;
+                    AddLog("WARNING", "Nessun dispositivo ESP32 rilevato sulle porte COM disponibili.");
                 }
             }
             catch (Exception ex)
@@ -376,7 +399,17 @@ namespace DataHandler
         private void ListenToSerialPort(string portName, CancellationToken token)
         {
             if (string.IsNullOrEmpty(portName))
+            {
+                // FIX: prima si usciva in silenzio senza avvisare nessuno. Ora
+                // segnaliamo esplicitamente che non c'è nessuna porta valida,
+                // così lo stato "DISCONNESSO" in UI è coerente con la realtà.
+                _dispatcher.Invoke(() =>
+                {
+                    IsConnected = false;
+                    AddLog("WARNING", "Nessuna porta valida selezionata: dispositivo non collegato.");
+                });
                 return;
+            }
 
             SerialPort? serial = null;
             try
@@ -391,11 +424,19 @@ namespace DataHandler
 
                 serial.Open();
 
+                // FIX: l'apertura riuscita della porta seriale NON significa che
+                // dall'altra parte ci sia davvero l'ESP32 collegato e funzionante:
+                // Windows apre volentieri una COM anche se il dispositivo è muto,
+                // scollegato subito dopo, o è un altro device che risponde a caso.
+                // Non impostiamo più IsConnected = true qui: lo facciamo solo dopo
+                // aver ricevuto il primo pacchetto di dati realmente valido.
                 _dispatcher.Invoke(() =>
                 {
-                    IsConnected = true;
-                    AddLog("INFO", $"Connesso alla porta seriale {portName} @ 9600 Baud.");
+                    OperatingStatus = "IN ATTESA DATI";
+                    AddLog("INFO", $"Porta {portName} aperta, in attesa di dati dal dispositivo...");
                 });
+
+                bool firstValidDataReceived = false;
 
                 Lexer lexer = new Lexer();
                 Parser parser = new Parser();
@@ -423,13 +464,22 @@ namespace DataHandler
                             // qua aggiorniamo l'interfaccia principale al volo
                             _dispatcher.Invoke(() =>
                             {
+                                if (!firstValidDataReceived)
+                                {
+                                    firstValidDataReceived = true;
+                                    IsConnected = true;
+                                    AddLog("INFO", $"Dispositivo confermato sulla porta {portName} @ 9600 Baud.");
+                                }
+
                                 ProcessTelemetryData(dataParsed, calculator, excelWriter);
                             });
                         }
                     }
                     catch (TimeoutException)
                     {
-                        // timeout normale quando non arrivano dati seriali
+                        // timeout normale quando non arrivano dati seriali:
+                        // se non abbiamo MAI ricevuto dati validi, restiamo onestamente
+                        // "non connessi" invece di mostrare un falso positivo.
                     }
                     catch (Exception ex)
                     {
@@ -453,6 +503,15 @@ namespace DataHandler
                     serial.Close();
                     serial.Dispose();
                 }
+
+                _dispatcher.Invoke(() =>
+                {
+                    if (IsConnected)
+                    {
+                        IsConnected = false;
+                        AddLog("WARNING", $"Connessione con la porta {portName} interrotta.");
+                    }
+                });
             }
         }
 
