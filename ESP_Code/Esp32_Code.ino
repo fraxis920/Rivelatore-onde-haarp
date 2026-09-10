@@ -2,7 +2,7 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <EEPROM.h>
 
-const bool DEBUG_MODE = false;
+const bool DEBUG_MODE = true;
 
 // CC1101
 const uint8_t CC1101_315_CSN = 5;
@@ -88,7 +88,7 @@ void loop()
     if (!hardwareOK)
     {
         delay(1000);
-        return;
+        //return;
     }
 
     if (!DEBUG_MODE)
@@ -100,7 +100,7 @@ void loop()
             );
 
             hardwareOK = false;
-            return;
+            //return;
         }
     }
 
